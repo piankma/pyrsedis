@@ -27,8 +27,16 @@ dev = [
     "redis[hiredis]>=7.0",
     "falkordb>=1.0",
 ]
+docs = [
+    "mkdocs-material>=9.0",
+]
 
 [tool.maturin]
 features = ["extension-module"]
 module-name = "pyrsedis._pyrsedis"
 python-source = "python"
+
+[dependency-groups]
+dev = [
+    "mkdocs-material>=9.0,<10",
+]

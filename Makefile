@@ -1,9 +1,9 @@
 .PHONY: help setup build build-native dev check fmt clippy test test-rust test-py \
-       bench redis-start redis-stop clean clean-all wheel
+       bench bench-quick redis-start redis-stop clean clean-all wheel docs docs-serve \
+       lint all ci
 
 SHELL  := /bin/bash
 PYTHON := .venv/bin/python
-PIP    := .venv/bin/pip
 PYTEST := .venv/bin/python -m pytest
 
 # ── Help ──────────────────────────────────────────────────────────
@@ -12,10 +12,9 @@ help: ## Show this help
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # ── Setup ─────────────────────────────────────────────────────────
-setup: ## Create venv and install dev dependencies
-	python3 -m venv .venv
-	$(PIP) install --upgrade pip
-	$(PIP) install maturin "pytest>=9.0" "redis[hiredis]>=7.0" "falkordb>=1.0"
+setup: ## Create venv and install all dependencies
+	uv venv .venv
+	uv sync --all-extras
 
 # ── Build ─────────────────────────────────────────────────────────
 build: ## Build release wheel and install into venv
@@ -68,6 +67,13 @@ redis-start: ## Start Redis in Docker on :6379
 redis-stop: ## Stop Redis Docker container
 	docker rm -f redis-test 2>/dev/null || true
 
+# ── Documentation ─────────────────────────────────────────────────
+docs: ## Build documentation to site/
+	$(PYTHON) -m mkdocs build --strict
+
+docs-serve: ## Serve docs locally with live reload
+	$(PYTHON) -m mkdocs serve
+
 # ── All-in-one ────────────────────────────────────────────────────
 all: lint test-rust build redis-start test-py redis-stop bench ## Run everything: lint, test, build, bench
 
@@ -76,7 +82,7 @@ ci: lint test-rust build ## CI-safe subset (no Docker needed)
 # ── Cleanup ───────────────────────────────────────────────────────
 clean: ## Remove build artifacts
 	cargo clean
-	rm -rf dist/ build/ *.egg-info
+	rm -rf dist/ build/ *.egg-info site/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 clean-all: clean ## Remove everything including venv
