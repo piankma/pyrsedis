@@ -48,9 +48,13 @@ pub struct ConnectionConfig {
     pub pool_size: usize,
     /// Connect timeout in milliseconds.
     pub connect_timeout_ms: u64,
+    /// Read/response timeout in milliseconds (0 = no timeout, default 30s).
+    ///
+    /// Prevents a slow-loris server from blocking a connection indefinitely.
+    pub read_timeout_ms: u64,
     /// Idle timeout in milliseconds (connections idle longer are dropped).
     pub idle_timeout_ms: u64,
-    /// Maximum read buffer size per connection in bytes (default 512 MB).
+    /// Maximum read buffer size per connection in bytes (default 64 MB).
     pub max_buffer_size: usize,
 }
 
@@ -66,6 +70,7 @@ impl Default for ConnectionConfig {
             topology: Topology::Standalone,
             pool_size: 8,
             connect_timeout_ms: 5000,
+            read_timeout_ms: 30_000, // 30 seconds
             idle_timeout_ms: 300_000, // 5 minutes
             max_buffer_size: crate::connection::tcp::DEFAULT_MAX_BUF_SIZE,
         }

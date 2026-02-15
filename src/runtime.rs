@@ -29,10 +29,17 @@ pub fn get_runtime() -> &'static Runtime {
             }
         }
 
-        builder
-            .thread_name("pyrsedis-rt")
-            .build()
-            .expect("failed to create tokio runtime")
+        match builder.thread_name("pyrsedis-rt").build() {
+            Ok(rt) => rt,
+            Err(e) => {
+                // Cannot return an error from OnceLock::get_or_init, so we
+                // must panic here. This is acceptable because runtime creation
+                // failure (e.g. ulimit too low) is unrecoverable. PyO3 will
+                // catch the panic at the FFI boundary and convert it to a
+                // Python RuntimeError.
+                panic!("pyrsedis: failed to create tokio runtime: {e}");
+            }
+        }
     })
 }
 

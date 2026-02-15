@@ -86,6 +86,12 @@ pub fn encode_pipeline(commands: &[Vec<String>]) -> Vec<u8> {
 /// Encode a single inline command (for simple commands like PING).
 ///
 /// Format: `COMMAND\r\n`
+///
+/// # Warning
+/// This does NOT validate the input — if `cmd` contains `\r\n`, it could
+/// inject additional RESP commands. Only use with trusted, constant strings.
+/// Prefer `encode_command`/`encode_command_str` for user-supplied input.
+#[cfg(test)]
 pub fn encode_inline(cmd: &str) -> Vec<u8> {
     let mut buf = Vec::with_capacity(cmd.len() + 2);
     buf.extend_from_slice(cmd.as_bytes());

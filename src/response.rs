@@ -14,6 +14,25 @@ use memchr::memchr;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyList, PySet, PyString};
 
+/// Maximum number of elements allowed in a single RESP array/set/map/push.
+///
+/// Prevents an attacker-controlled count (e.g. `*2147483647\r\n`) from
+/// triggering a multi-GB allocation before actual elements are read.
+/// 16 million elements is generous for any real Redis response.
+const MAX_RESP_ELEMENTS: usize = 16_777_216;
+
+/// Maximum recursion depth for nested RESP arrays/maps/sets.
+///
+/// Prevents stack overflow from deeply nested structures like
+/// `*1\r\n*1\r\n*1\r\n...` sent by a malicious server.
+const MAX_PARSE_DEPTH: usize = 512;
+
+/// Maximum length (in bytes) for BigNumber values.
+///
+/// Python's `int()` constructor is safe but can be slow for extremely
+/// large numbers. Cap at 10,000 digits to prevent CPU DoS.
+const MAX_BIGNUMBER_LEN: usize = 10_000;
+
 /// Build a Python list of `count` elements in-place using CPython FFI.
 ///
 /// Uses `PyList_New` (pre-sized) + `PyList_SET_ITEM` (steals references),
@@ -26,12 +45,22 @@ use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyList, PySet, PyString};
 /// - `PyList_SET_ITEM` steals the reference from `into_ptr()`.
 /// - On error, remaining slots are filled with `Py_None` so the list is valid
 ///   for `Py_DECREF` cleanup.
+///
+/// # Refcount invariants (VULN-07 documentation)
+/// - `PyList_New` returns a new reference (refcount=1 on the list).
+/// - `PyList_SET_ITEM` **steals** the reference from `item.into_ptr()`,
+///   so no extra IncRef is needed for successfully parsed items.
+/// - On error at slot `i`: slots `0..i` already have stolen refs (owned by
+///   the list). We fill slot `i` and remaining slots `i+1..count` with
+///   `Py_None` (IncRef'd before SET_ITEM steals it). Then `Py_DecRef(list_ptr)`
+///   drops the list, which decrefs all `count` items (valid refs or None).
 #[inline]
 unsafe fn build_pylist_ffi(
     py: Python<'_>,
     buf: &[u8],
     mut pos: usize,
     count: usize,
+    depth: usize,
     decode: bool,
 ) -> PyResult<(Py<PyAny>, usize)> {
     let list_ptr = pyo3::ffi::PyList_New(count as isize);
@@ -40,7 +69,7 @@ unsafe fn build_pylist_ffi(
     }
 
     for i in 0..count {
-        match parse_inner(py, buf, pos, decode) {
+        match parse_inner(py, buf, pos, depth, decode) {
             Ok((item, end)) => {
                 pos = end;
                 pyo3::ffi::PyList_SET_ITEM(list_ptr, i as isize, item.into_ptr());
@@ -317,11 +346,12 @@ fn fused_read_line(buf: &[u8], offset: usize) -> std::result::Result<(&[u8], usi
     Ok((&buf[offset..cr], cr + 2))
 }
 
-/// Fast integer parser — no checked arithmetic on the hot path.
+/// Fast integer parser with digit validation.
 ///
 /// RESP frames from `read_raw_response` are guaranteed complete and well-formed
-/// (validated by `resp_frame_len`), so we can skip per-digit overflow checks.
-/// This saves ~2 cycles per digit × millions of integers in large graph results.
+/// (validated by `resp_frame_len`), so we use wrapping arithmetic for speed
+/// but still validate that all bytes are ASCII digits to prevent garbage values
+/// from corrupting array counts or bulk string lengths.
 #[inline(always)]
 fn fused_parse_int(bytes: &[u8]) -> std::result::Result<i64, PyrsedisError> {
     if bytes.is_empty() {
@@ -336,13 +366,33 @@ fn fused_parse_int(bytes: &[u8]) -> std::result::Result<i64, PyrsedisError> {
     if digits.is_empty() {
         return Err(PyrsedisError::Protocol("integer has no digits".into()));
     }
-    // Unchecked arithmetic — RESP integers from Redis fit in i64.
-    // (Redis LLONG_MIN..LLONG_MAX, element counts are non-negative usize)
+    // Wrapping arithmetic for speed, but validate digits to prevent garbage.
     let mut n: i64 = 0;
     for &b in digits {
-        n = n.wrapping_mul(10).wrapping_add((b.wrapping_sub(b'0')) as i64);
+        if b < b'0' || b > b'9' {
+            return Err(PyrsedisError::Protocol(
+                format!("invalid byte in integer: 0x{b:02x}")
+            ));
+        }
+        n = n.wrapping_mul(10).wrapping_add((b - b'0') as i64);
     }
     Ok(if negative { -n } else { n })
+}
+
+/// Validate and cast a parsed count to usize, guarding against negative
+/// values (which would wrap to massive usize) and unreasonably large counts.
+#[inline(always)]
+fn validated_count(count: i64) -> PyResult<usize> {
+    if count < 0 {
+        return Err(PyrsedisError::Protocol("negative element count".into()).into());
+    }
+    let count = count as usize;
+    if count > MAX_RESP_ELEMENTS {
+        return Err(PyrsedisError::Protocol(
+            format!("element count {count} exceeds maximum {MAX_RESP_ELEMENTS}")
+        ).into());
+    }
+    Ok(count)
 }
 
 /// Parse one RESP value from raw `Bytes` directly into a Python object.
@@ -365,7 +415,7 @@ pub fn parse_to_python(
     }
     // Delegate to the inner function that works on &[u8] with offset tracking.
     // This avoids Bytes::slice() atomic refcount ops on every recursive call.
-    let (obj, end) = parse_inner(py, buf, 0, decode)?;
+    let (obj, end) = parse_inner(py, buf, 0, 0, decode)?;
     Ok((obj, end))
 }
 
@@ -378,8 +428,14 @@ fn parse_inner(
     py: Python<'_>,
     buf: &[u8],
     pos: usize,
+    depth: usize,
     decode: bool,
 ) -> PyResult<(Py<PyAny>, usize)> {
+    if depth > MAX_PARSE_DEPTH {
+        return Err(PyrsedisError::Protocol(
+            format!("RESP nesting depth exceeds maximum of {MAX_PARSE_DEPTH}")
+        ).into());
+    }
     if pos >= buf.len() {
         return Err(PyrsedisError::Incomplete.into());
     }
@@ -438,8 +494,9 @@ fn parse_inner(
             if count < 0 {
                 return Ok((py.None(), next)); // null array
             }
+            let count = validated_count(count)?;
             // SAFETY: parse_inner produces valid Py<PyAny>, build_pylist_ffi handles errors
-            unsafe { build_pylist_ffi(py, buf, next, count as usize, decode) }
+            unsafe { build_pylist_ffi(py, buf, next, count, depth + 1, decode) }
         }
         b'_' => {
             // Null
@@ -467,8 +524,13 @@ fn parse_inner(
             Ok((PyFloat::new(py, f).into_any().unbind(), next))
         }
         b'(' => {
-            // BigNumber → Python int
+            // BigNumber → Python int (length-limited to prevent CPU DoS)
             let (line, next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
+            if line.len() > MAX_BIGNUMBER_LEN {
+                return Err(PyrsedisError::Protocol(
+                    format!("BigNumber length {} exceeds maximum {MAX_BIGNUMBER_LEN}", line.len())
+                ).into());
+            }
             let s = std::str::from_utf8(line)
                 .map_err(|e| PyrsedisError::Protocol(format!("invalid UTF-8 in big number: {e}")))?;
             let builtins = py.import("builtins")?;
@@ -478,7 +540,11 @@ fn parse_inner(
         b'!' => {
             // BulkError → raise RedisError
             let (line, next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let len = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let len = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            if len < 0 {
+                return Err(PyrsedisError::Protocol("negative bulk error length".into()).into());
+            }
+            let len = len as usize;
             let total = next + len + 2;
             if buf.len() < total {
                 return Err(PyrsedisError::Incomplete.into());
@@ -489,7 +555,11 @@ fn parse_inner(
         b'=' => {
             // VerbatimString → Python str (skip encoding prefix)
             let (line, next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let len = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let len = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            if len < 0 {
+                return Err(PyrsedisError::Protocol("negative verbatim string length".into()).into());
+            }
+            let len = len as usize;
             let total = next + len + 2;
             if buf.len() < total {
                 return Err(PyrsedisError::Incomplete.into());
@@ -508,12 +578,13 @@ fn parse_inner(
         b'%' => {
             // Map → Python dict
             let (line, mut next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            let count = validated_count(count)?;
             let dict = PyDict::new(py);
             for _ in 0..count {
-                let (key, end_k) = parse_inner(py, buf, next, decode)?;
+                let (key, end_k) = parse_inner(py, buf, next, depth + 1, decode)?;
                 next = end_k;
-                let (val, end_v) = parse_inner(py, buf, next, decode)?;
+                let (val, end_v) = parse_inner(py, buf, next, depth + 1, decode)?;
                 next = end_v;
                 dict.set_item(key, val)?;
             }
@@ -522,10 +593,11 @@ fn parse_inner(
         b'~' => {
             // Set → Python set
             let (line, mut next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            let count = validated_count(count)?;
             let set = PySet::empty(py)?;
             for _ in 0..count {
-                let (item, end) = parse_inner(py, buf, next, decode)?;
+                let (item, end) = parse_inner(py, buf, next, depth + 1, decode)?;
                 next = end;
                 set.add(item)?;
             }
@@ -534,23 +606,25 @@ fn parse_inner(
         b'>' => {
             // Push → Python list (via FFI)
             let (line, next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            let count = validated_count(count)?;
             // SAFETY: same as array arm
-            unsafe { build_pylist_ffi(py, buf, next, count, decode) }
+            unsafe { build_pylist_ffi(py, buf, next, count, depth + 1, decode) }
         }
         b'|' => {
             // Attribute → dict with __data__ and __attrs__
             let (line, mut next) = fused_read_line(buf, pos + 1).map_err(|e| -> PyErr { e.into() })?;
-            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })? as usize;
+            let count = fused_parse_int(line).map_err(|e| -> PyErr { e.into() })?;
+            let count = validated_count(count)?;
             let attrs_dict = PyDict::new(py);
             for _ in 0..count {
-                let (key, end_k) = parse_inner(py, buf, next, decode)?;
+                let (key, end_k) = parse_inner(py, buf, next, depth + 1, decode)?;
                 next = end_k;
-                let (val, end_v) = parse_inner(py, buf, next, decode)?;
+                let (val, end_v) = parse_inner(py, buf, next, depth + 1, decode)?;
                 next = end_v;
                 attrs_dict.set_item(key, val)?;
             }
-            let (data, end) = parse_inner(py, buf, next, decode)?;
+            let (data, end) = parse_inner(py, buf, next, depth + 1, decode)?;
             next = end;
             let dict = PyDict::new(py);
             dict.set_item("__attrs__", attrs_dict)?;

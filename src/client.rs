@@ -58,11 +58,12 @@ impl Redis {
     ///     username: Optional username (Redis 6+ ACL).
     ///     pool_size: Connection pool size (default ``8``).
     ///     connect_timeout_ms: Connect timeout in milliseconds (default ``5000``).
+    ///     read_timeout_ms: Read/response timeout in milliseconds, 0 = no timeout (default ``30000``).
     ///     idle_timeout_ms: Idle connection timeout in milliseconds (default ``300000``).
-    ///     max_buffer_size: Max read buffer size per connection in bytes (default ``536870912``).
+    ///     max_buffer_size: Max read buffer size per connection in bytes (default ``67108864``).
     ///     decode_responses: If ``True``, decode bulk string responses to Python ``str`` (default ``False``).
     #[new]
-    #[pyo3(signature = (host="127.0.0.1", port=6379, db=0, password=None, username=None, pool_size=8, connect_timeout_ms=5000, idle_timeout_ms=300_000, max_buffer_size=536_870_912, decode_responses=false))]
+    #[pyo3(signature = (host="127.0.0.1", port=6379, db=0, password=None, username=None, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, max_buffer_size=67_108_864, decode_responses=false))]
     fn new(
         host: &str,
         port: u16,
@@ -71,6 +72,7 @@ impl Redis {
         username: Option<String>,
         pool_size: usize,
         connect_timeout_ms: u64,
+        read_timeout_ms: u64,
         idle_timeout_ms: u64,
         max_buffer_size: usize,
         decode_responses: bool,
@@ -88,6 +90,7 @@ impl Redis {
             topology: Topology::Standalone,
             pool_size,
             connect_timeout_ms,
+            read_timeout_ms,
             idle_timeout_ms,
             max_buffer_size,
         };
@@ -107,17 +110,19 @@ impl Redis {
     /// r = Redis.from_url("redis://:secret@localhost:6379/0")
     /// ```
     #[staticmethod]
-    #[pyo3(signature = (url, pool_size=8, connect_timeout_ms=5000, idle_timeout_ms=300_000, decode_responses=false))]
+    #[pyo3(signature = (url, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, decode_responses=false))]
     fn from_url(
         url: &str,
         pool_size: usize,
         connect_timeout_ms: u64,
+        read_timeout_ms: u64,
         idle_timeout_ms: u64,
         decode_responses: bool,
     ) -> PyResult<Self> {
         let mut config = ConnectionConfig::from_url(url).map_err(|e| -> PyErr { e.into() })?;
         config.pool_size = pool_size;
         config.connect_timeout_ms = connect_timeout_ms;
+        config.read_timeout_ms = read_timeout_ms;
         config.idle_timeout_ms = idle_timeout_ms;
         let addr = config.primary_addr();
         Ok(Self {

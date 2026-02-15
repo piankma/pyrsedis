@@ -114,7 +114,11 @@ pub fn resp_frame_len(buf: &[u8]) -> Result<usize> {
         b'%' => {
             // Map: %<count>\r\n<key><value>…
             let (line, mut next) = read_line(buf, 1)?;
-            let count = parse_int_from_bytes(line)? as usize;
+            let count = parse_int_from_bytes(line)?;
+            if count < 0 {
+                return Err(PyrsedisError::Protocol("negative map count".into()));
+            }
+            let count = count as usize;
             for _ in 0..count {
                 let k_len = resp_frame_len(&buf[next..])?;
                 next += k_len;
@@ -126,7 +130,11 @@ pub fn resp_frame_len(buf: &[u8]) -> Result<usize> {
         b'|' => {
             // Attribute: |<count>\r\n<key><value>…<actual-data>
             let (line, mut next) = read_line(buf, 1)?;
-            let count = parse_int_from_bytes(line)? as usize;
+            let count = parse_int_from_bytes(line)?;
+            if count < 0 {
+                return Err(PyrsedisError::Protocol("negative attribute count".into()));
+            }
+            let count = count as usize;
             for _ in 0..count {
                 let k_len = resp_frame_len(&buf[next..])?;
                 next += k_len;
@@ -193,6 +201,8 @@ fn parse_int_from_bytes(bytes: &[u8]) -> Result<i64> {
         return Err(PyrsedisError::Protocol("integer has no digits".into()));
     }
 
+    // Accumulate as negative to handle i64::MIN correctly:
+    // |i64::MIN| overflows positive i64, but -|digit| never overflows negative i64.
     let mut n: i64 = 0;
     for &b in digits {
         if !b.is_ascii_digit() {
@@ -202,11 +212,12 @@ fn parse_int_from_bytes(bytes: &[u8]) -> Result<i64> {
         }
         n = n
             .checked_mul(10)
-            .and_then(|n| n.checked_add((b - b'0') as i64))
+            .and_then(|n| n.checked_sub((b - b'0') as i64))
             .ok_or_else(|| PyrsedisError::Protocol("integer overflow".into()))?;
     }
 
-    Ok(if negative { -n } else { n })
+    // n is always <= 0 here. Negate for positive numbers.
+    Ok(if negative { n } else { -n })
 }
 
 // ── Type parsers ──────────────────────────────────────────────────
@@ -362,7 +373,11 @@ fn parse_big_number(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// `!<length>\r\n<error>\r\n`
 fn parse_bulk_error(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, next) = read_line(buf, 1)?;
-    let len = parse_int_from_bytes(line)? as usize;
+    let len = parse_int_from_bytes(line)?;
+    if len < 0 {
+        return Err(PyrsedisError::Protocol("negative bulk error length".into()));
+    }
+    let len = len as usize;
 
     if buf.len() < next + len + 2 {
         return Err(PyrsedisError::Incomplete);
@@ -381,7 +396,11 @@ fn parse_bulk_error(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// `=<length>\r\n<encoding>:<data>\r\n`
 fn parse_verbatim_string(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, next) = read_line(buf, 1)?;
-    let len = parse_int_from_bytes(line)? as usize;
+    let len = parse_int_from_bytes(line)?;
+    if len < 0 {
+        return Err(PyrsedisError::Protocol("negative verbatim string length".into()));
+    }
+    let len = len as usize;
 
     if buf.len() < next + len + 2 {
         return Err(PyrsedisError::Incomplete);
@@ -411,7 +430,11 @@ fn parse_verbatim_string(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// `%<count>\r\n<key><value>…`
 fn parse_map(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, mut next) = read_line(buf, 1)?;
-    let count = parse_int_from_bytes(line)? as usize;
+    let count = parse_int_from_bytes(line)?;
+    if count < 0 {
+        return Err(PyrsedisError::Protocol("negative map count".into()));
+    }
+    let count = count as usize;
 
     let mut pairs = Vec::with_capacity(count);
     for _ in 0..count {
@@ -429,7 +452,11 @@ fn parse_map(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// `~<count>\r\n<elements>…`
 fn parse_set(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, mut next) = read_line(buf, 1)?;
-    let count = parse_int_from_bytes(line)? as usize;
+    let count = parse_int_from_bytes(line)?;
+    if count < 0 {
+        return Err(PyrsedisError::Protocol("negative set count".into()));
+    }
+    let count = count as usize;
 
     let mut elements = Vec::with_capacity(count);
     for _ in 0..count {
@@ -444,7 +471,11 @@ fn parse_set(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// `><count>\r\n<kind><elements>…`
 fn parse_push(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, mut next) = read_line(buf, 1)?;
-    let count = parse_int_from_bytes(line)? as usize;
+    let count = parse_int_from_bytes(line)?;
+    if count < 0 {
+        return Err(PyrsedisError::Protocol("negative push count".into()));
+    }
+    let count = count as usize;
 
     if count == 0 {
         return Err(PyrsedisError::Protocol(
@@ -486,7 +517,11 @@ fn parse_push(buf: &Bytes) -> Result<(RespValue, usize)> {
 /// that is the actual data.
 fn parse_attribute(buf: &Bytes) -> Result<(RespValue, usize)> {
     let (line, mut next) = read_line(buf, 1)?;
-    let count = parse_int_from_bytes(line)? as usize;
+    let count = parse_int_from_bytes(line)?;
+    if count < 0 {
+        return Err(PyrsedisError::Protocol("negative attribute count".into()));
+    }
+    let count = count as usize;
 
     let mut attributes = Vec::with_capacity(count);
     for _ in 0..count {

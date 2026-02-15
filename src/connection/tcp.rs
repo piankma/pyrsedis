@@ -16,8 +16,12 @@ use tokio::net::TcpStream;
 /// Default initial read buffer capacity (64 KB).
 const DEFAULT_BUF_CAPACITY: usize = 64 * 1024;
 
-/// Default maximum read buffer size (512 MB).
-pub const DEFAULT_MAX_BUF_SIZE: usize = 512 * 1024 * 1024;
+/// Default maximum read buffer size (64 MB).
+///
+/// Reduced from 512 MB to limit per-connection memory exposure.
+/// With a default pool of 8 connections, worst-case is ~512 MB total.
+/// Users can configure a higher limit if needed.
+pub const DEFAULT_MAX_BUF_SIZE: usize = 64 * 1024 * 1024;
 
 /// A single async connection to a Redis server.
 pub struct RedisConnection {
@@ -26,6 +30,8 @@ pub struct RedisConnection {
     buf: BytesMut,
     /// Maximum allowed buffer size.
     max_buf_size: usize,
+    /// Per-read timeout (0 = no timeout).
+    read_timeout: Option<std::time::Duration>,
     /// Timestamp of last successful I/O (for idle checks).
     pub last_used: Instant,
 }
@@ -44,6 +50,7 @@ impl RedisConnection {
             stream,
             buf: BytesMut::with_capacity(DEFAULT_BUF_CAPACITY),
             max_buf_size,
+            read_timeout: None,
             last_used: Instant::now(),
         })
     }
@@ -65,6 +72,39 @@ impl RedisConnection {
                 "connection to {addr} timed out after {timeout:?}"
             ))),
         }
+    }
+
+    /// Set the read timeout for this connection.
+    pub fn set_read_timeout(&mut self, timeout_ms: u64) {
+        self.read_timeout = if timeout_ms > 0 {
+            Some(std::time::Duration::from_millis(timeout_ms))
+        } else {
+            None
+        };
+    }
+
+    /// Read from the socket, applying the read timeout if configured.
+    async fn read_with_timeout(&mut self) -> Result<usize> {
+        let read_future = self.stream.read_buf(&mut self.buf);
+        let n = if let Some(timeout) = self.read_timeout {
+            match tokio::time::timeout(timeout, read_future).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    return Err(PyrsedisError::Timeout(format!(
+                        "read timed out after {timeout:?}"
+                    )));
+                }
+            }
+        } else {
+            read_future.await?
+        };
+        if n == 0 {
+            return Err(PyrsedisError::Connection(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "connection closed by server",
+            )));
+        }
+        Ok(n)
     }
 
     /// Send raw bytes to the server.
@@ -123,13 +163,7 @@ impl RedisConnection {
                     self.buf.reserve(new_cap - self.buf.capacity());
                 }
             }
-            let n = self.stream.read_buf(&mut self.buf).await?;
-            if n == 0 {
-                return Err(PyrsedisError::Connection(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "connection closed by server",
-                )));
-            }
+            self.read_with_timeout().await?;
         }
     }
 
@@ -170,13 +204,7 @@ impl RedisConnection {
                     self.buf.reserve(new_cap - self.buf.capacity());
                 }
             }
-            let n = self.stream.read_buf(&mut self.buf).await?;
-            if n == 0 {
-                return Err(PyrsedisError::Connection(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "connection closed by server",
-                )));
-            }
+            self.read_with_timeout().await?;
         }
     }
 

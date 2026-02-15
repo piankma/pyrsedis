@@ -443,6 +443,9 @@ impl ClusterRouter {
 
     /// Route a command to the correct node, handling MOVED/ASK.
     async fn execute_routed(&self, args: &[&str]) -> Result<RespValue> {
+        if args.is_empty() {
+            return Err(PyrsedisError::Protocol("empty command".into()));
+        }
         let slot = extract_key(args).map(|k| hash_slot(k.as_bytes()));
         let is_read = is_read_only_command(args[0]);
 

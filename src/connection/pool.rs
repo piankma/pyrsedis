@@ -92,6 +92,16 @@ impl ConnectionPool {
 
     /// Create a new connection using the pool's config.
     async fn create_connection(&self) -> Result<RedisConnection> {
+        // VULN-05: Reject TLS requests since TLS is not yet implemented.
+        // Without this check, `rediss://` URLs silently use plaintext,
+        // exposing AUTH passwords and data.
+        if self.config.tls {
+            return Err(PyrsedisError::Protocol(
+                "TLS connections (rediss://) are not yet supported. \
+                 Use redis:// or set tls=false.".into(),
+            ));
+        }
+
         let addr = self.config.primary_addr();
         let timeout = Duration::from_millis(self.config.connect_timeout_ms);
         let mut conn = RedisConnection::connect_timeout_with_max_buf(
@@ -100,6 +110,9 @@ impl ConnectionPool {
             self.config.max_buffer_size,
         )
         .await?;
+
+        // Apply read timeout (VULN-14: prevents slow-loris attacks)
+        conn.set_read_timeout(self.config.read_timeout_ms);
 
         conn.init(
             self.config.username.as_deref(),
