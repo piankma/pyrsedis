@@ -346,12 +346,13 @@ fn fused_read_line(buf: &[u8], offset: usize) -> std::result::Result<(&[u8], usi
     Ok((&buf[offset..cr], cr + 2))
 }
 
-/// Fast integer parser with digit validation.
+/// Fast integer parser with upfront digit validation.
 ///
 /// RESP frames from `read_raw_response` are guaranteed complete and well-formed
-/// (validated by `resp_frame_len`), so we use wrapping arithmetic for speed
-/// but still validate that all bytes are ASCII digits to prevent garbage values
-/// from corrupting array counts or bulk string lengths.
+/// (validated by `resp_frame_len` → `parse_int_from_bytes`), so digits are
+/// already verified. We do a single branchless validation pass upfront to
+/// guard against corruption, then use wrapping arithmetic with no per-digit
+/// branches on the hot path.
 #[inline(always)]
 fn fused_parse_int(bytes: &[u8]) -> std::result::Result<i64, PyrsedisError> {
     if bytes.is_empty() {
@@ -366,15 +367,27 @@ fn fused_parse_int(bytes: &[u8]) -> std::result::Result<i64, PyrsedisError> {
     if digits.is_empty() {
         return Err(PyrsedisError::Protocol("integer has no digits".into()));
     }
-    // Wrapping arithmetic for speed, but validate digits to prevent garbage.
+    // Branchless upfront validation: OR all (b - b'0') values together.
+    // If any byte is < b'0' (wraps to > 9 as u8) or > b'9', the final
+    // value will have bits above 0x09 set.
+    let mut check: u8 = 0;
+    for &b in digits {
+        check |= b.wrapping_sub(b'0');
+    }
+    if check > 9 {
+        // At least one non-digit byte — find it for the error message
+        for &b in digits {
+            if b < b'0' || b > b'9' {
+                return Err(PyrsedisError::Protocol(
+                    format!("invalid byte in integer: 0x{b:02x}")
+                ));
+            }
+        }
+    }
+    // Hot path: unchecked arithmetic (digits are validated above)
     let mut n: i64 = 0;
     for &b in digits {
-        if b < b'0' || b > b'9' {
-            return Err(PyrsedisError::Protocol(
-                format!("invalid byte in integer: 0x{b:02x}")
-            ));
-        }
-        n = n.wrapping_mul(10).wrapping_add((b - b'0') as i64);
+        n = n.wrapping_mul(10).wrapping_add((b.wrapping_sub(b'0')) as i64);
     }
     Ok(if negative { -n } else { n })
 }
