@@ -1,0 +1,37 @@
+[package]
+name = "pyrsedis"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance Redis client for Python, built in Rust — with FalkorDB/RedisGraph support and direct Pydantic deserialization"
+license = "MIT"
+
+[lib]
+name = "_pyrsedis"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+tls = ["dep:rustls", "dep:webpki-roots", "dep:tokio-rustls"]
+
+[dependencies]
+pyo3 = { version = "0.28", features = ["auto-initialize"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
+parking_lot = "0.12"
+memchr = "2"
+itoa = "1"
+bytes = "1"
+
+# Optional TLS
+rustls = { version = "0.23", optional = true }
+webpki-roots = { version = "0.26", optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util", "rt-multi-thread", "macros"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
