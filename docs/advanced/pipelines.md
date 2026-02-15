@@ -10,7 +10,7 @@ pipe.set("a", "1")
 pipe.set("b", "2")
 pipe.get("a")
 pipe.get("b")
-results = pipe.execute()    # [True, True, b'1', b'2']
+results = pipe.execute()    # [True, True, '1', '2']
 ```
 
 Results are returned in the same order as the commands.
@@ -44,31 +44,28 @@ pipe.execute()
 
 ## Supported commands
 
-All `Redis` commands that return data are available on `Pipeline`. This includes:
-
-- String: `set`, `get`, `delete`, `exists`, `incr`, `decr`, `append`, `mget`, ...
-- Hash: `hset`, `hget`, `hgetall`, `hdel`, `hmget`, ...
-- List: `lpush`, `rpush`, `lpop`, `rpop`, `lrange`, ...
-- Set: `sadd`, `smembers`, `srem`, `scard`, ...
-- Sorted Set: `zadd`, `zrange`, `zscore`, `zrem`, ...
-- Key: `expire`, `ttl`, `rename`, `persist`, `type`, `unlink`, ...
-- Graph: `graph_query`, `graph_ro_query`, `graph_delete`, `graph_list`
-- Server: `ping`, `flushdb`, `dbsize`, `echo`, `time`, ...
+Most `Redis` commands are available on `Pipeline`. For any command not directly available, use `execute_command`:\n\n```python\npipe.execute_command(\"OBJECT\", \"ENCODING\", \"mykey\")\n```
 
 ## Error handling
 
-If a command in a pipeline fails, its slot in the results list contains the exception. Other commands still execute.
+If any command in the pipeline returns a Redis error, `execute()` raises a `ResponseError` (or a more specific `RedisError` subclass like `WrongTypeError`). All commands are sent to the server, but parsing stops at the first error — partial results are not returned.
 
 ```python
+import pyrsedis
+
 pipe = r.pipeline()
 pipe.set("key", "value")
 pipe.execute_command("INVALID_CMD")
 pipe.get("key")
-results = pipe.execute()
-# results[0] = True
-# results[1] = RuntimeError("ERR unknown command 'INVALID_CMD'...")
-# results[2] = b'value'
+
+try:
+    results = pipe.execute()
+except pyrsedis.ResponseError as e:
+    print(e)  # "ERR unknown command 'INVALID_CMD'..."
 ```
+
+!!! note
+    Unlike redis-py, pyrsedis does not return partial results with inline exceptions. If you need fault-tolerant pipelines, split commands into separate pipelines or wrap the call in a try/except.
 
 ## Performance
 
@@ -77,4 +74,4 @@ Pipeline throughput on SET ×5,000 (single round-trip):
 | Client | Time |
 |---|---|
 | **pyrsedis** | ~5 ms |
-| redis-py | ~20 ms |
+| redis-py | ~61 ms |

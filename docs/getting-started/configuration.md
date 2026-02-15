@@ -18,7 +18,7 @@ r = Redis(
     read_timeout_ms=30_000,      # Response read timeout (ms), 0 = none
     idle_timeout_ms=300_000,     # Evict idle connections after (ms)
     max_buffer_size=67_108_864,  # Max read buffer per connection (64 MB)
-    decode_responses=False,      # Decode bytes → str automatically
+    decode_responses=True,       # Set False for raw bytes
 )
 ```
 
@@ -36,7 +36,7 @@ r = Redis(
 | `read_timeout_ms` | `30000` | Read timeout in milliseconds. `0` disables |
 | `idle_timeout_ms` | `300000` | Connections idle longer than this are dropped |
 | `max_buffer_size` | `67108864` | Max read buffer size per connection (bytes) |
-| `decode_responses` | `False` | Return `str` instead of `bytes` for bulk strings |
+| `decode_responses` | `True` | Return `str` for bulk strings. Set `False` for raw `bytes` |
 
 ## Best practices
 

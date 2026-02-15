@@ -38,7 +38,7 @@ r.flushall()   # delete all keys in all databases
 ## `echo` / `time`
 
 ```python
-r.echo("hello")     # b'hello'
+r.echo("hello")     # 'hello'
 r.time()             # [seconds, microseconds]
 ```
 

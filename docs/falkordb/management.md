@@ -13,7 +13,7 @@ r.graph_delete("social")
 List all graph keys.
 
 ```python
-r.graph_list()    # [b'social', b'knowledge']
+r.graph_list()    # ['social', 'knowledge']
 ```
 
 ## `graph_explain`
@@ -55,5 +55,5 @@ Get or set FalkorDB configuration.
 r.graph_config("GET", "TIMEOUT")
 
 # Set a config value
-r.graph_config("SET", "TIMEOUT", 5000)
+r.graph_config("SET", "TIMEOUT", "5000")
 ```

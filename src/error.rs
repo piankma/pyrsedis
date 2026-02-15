@@ -1,9 +1,67 @@
-use pyo3::exceptions::{
-    PyConnectionError, PyIOError, PyRuntimeError, PyTimeoutError, PyTypeError, PyValueError,
-};
 use pyo3::prelude::*;
 use std::fmt;
 use std::io;
+
+// ── Custom exception hierarchy ─────────────────────────────────────
+//
+//  PyrsedisError (Exception)
+//  ├── RedisConnectionError
+//  ├── RedisTimeoutError
+//  ├── ProtocolError
+//  ├── RedisError
+//  │   ├── ResponseError          (generic ERR)
+//  │   ├── WrongTypeError         (WRONGTYPE)
+//  │   ├── ReadOnlyError          (READONLY)
+//  │   ├── NoScriptError          (NOSCRIPT)
+//  │   ├── BusyError              (BUSY)
+//  │   └── ClusterDownError       (CLUSTERDOWN)
+//  ├── GraphError
+//  ├── ClusterError
+//  └── SentinelError
+
+/// Python exception classes, isolated in a submodule to avoid name
+/// collisions with the Rust `PyrsedisError` enum and its variants.
+pub mod exc {
+    use pyo3::exceptions::PyException;
+
+    pyo3::create_exception!(pyrsedis, PyrsedisError, PyException, "Base exception for all pyrsedis errors.");
+
+    // Direct children of PyrsedisError
+    pyo3::create_exception!(pyrsedis, RedisConnectionError, PyrsedisError, "Cannot connect or connection dropped.");
+    pyo3::create_exception!(pyrsedis, RedisTimeoutError, PyrsedisError, "Connect or read timeout exceeded.");
+    pyo3::create_exception!(pyrsedis, ProtocolError, PyrsedisError, "Malformed RESP data received.");
+    pyo3::create_exception!(pyrsedis, RedisError, PyrsedisError, "Redis server returned an error.");
+    pyo3::create_exception!(pyrsedis, GraphError, PyrsedisError, "FalkorDB / graph-specific error.");
+    pyo3::create_exception!(pyrsedis, ClusterError, PyrsedisError, "Cluster topology error.");
+    pyo3::create_exception!(pyrsedis, SentinelError, PyrsedisError, "Sentinel topology error.");
+
+    // Children of RedisError
+    pyo3::create_exception!(pyrsedis, ResponseError, RedisError, "Generic Redis ERR response.");
+    pyo3::create_exception!(pyrsedis, WrongTypeError, RedisError, "WRONGTYPE — operation against a key holding the wrong kind of value.");
+    pyo3::create_exception!(pyrsedis, ReadOnlyError, RedisError, "READONLY — cannot write against a read-only replica.");
+    pyo3::create_exception!(pyrsedis, NoScriptError, RedisError, "NOSCRIPT — no matching script found.");
+    pyo3::create_exception!(pyrsedis, BusyError, RedisError, "BUSY — Redis is busy running a script.");
+    pyo3::create_exception!(pyrsedis, ClusterDownError, RedisError, "CLUSTERDOWN — the cluster is down.");
+}
+
+/// Register all exception classes on the module so they are importable.
+pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("PyrsedisError", m.py().get_type::<exc::PyrsedisError>())?;
+    m.add("RedisConnectionError", m.py().get_type::<exc::RedisConnectionError>())?;
+    m.add("RedisTimeoutError", m.py().get_type::<exc::RedisTimeoutError>())?;
+    m.add("ProtocolError", m.py().get_type::<exc::ProtocolError>())?;
+    m.add("RedisError", m.py().get_type::<exc::RedisError>())?;
+    m.add("GraphError", m.py().get_type::<exc::GraphError>())?;
+    m.add("ClusterError", m.py().get_type::<exc::ClusterError>())?;
+    m.add("SentinelError", m.py().get_type::<exc::SentinelError>())?;
+    m.add("ResponseError", m.py().get_type::<exc::ResponseError>())?;
+    m.add("WrongTypeError", m.py().get_type::<exc::WrongTypeError>())?;
+    m.add("ReadOnlyError", m.py().get_type::<exc::ReadOnlyError>())?;
+    m.add("NoScriptError", m.py().get_type::<exc::NoScriptError>())?;
+    m.add("BusyError", m.py().get_type::<exc::BusyError>())?;
+    m.add("ClusterDownError", m.py().get_type::<exc::ClusterDownError>())?;
+    Ok(())
+}
 
 /// Structured Redis error kinds for programmatic matching.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,16 +253,23 @@ impl From<io::Error> for PyrsedisError {
 
 impl From<PyrsedisError> for PyErr {
     fn from(err: PyrsedisError) -> PyErr {
+        let msg = err.to_string();
         match &err {
-            PyrsedisError::Connection(_) => PyConnectionError::new_err(err.to_string()),
-            PyrsedisError::Protocol(_) => PyRuntimeError::new_err(err.to_string()),
-            PyrsedisError::Incomplete => PyRuntimeError::new_err(err.to_string()),
-            PyrsedisError::Redis { .. } => PyRuntimeError::new_err(err.to_string()),
-            PyrsedisError::Graph(_) => PyValueError::new_err(err.to_string()),
-            PyrsedisError::Type(_) => PyTypeError::new_err(err.to_string()),
-            PyrsedisError::Timeout(_) => PyTimeoutError::new_err(err.to_string()),
-            PyrsedisError::Cluster(_) => PyIOError::new_err(err.to_string()),
-            PyrsedisError::Sentinel(_) => PyIOError::new_err(err.to_string()),
+            PyrsedisError::Connection(_) => exc::RedisConnectionError::new_err(msg),
+            PyrsedisError::Protocol(_) | PyrsedisError::Incomplete => exc::ProtocolError::new_err(msg),
+            PyrsedisError::Redis { kind, .. } => match kind {
+                RedisErrorKind::WrongType => exc::WrongTypeError::new_err(msg),
+                RedisErrorKind::ReadOnly => exc::ReadOnlyError::new_err(msg),
+                RedisErrorKind::NoScript => exc::NoScriptError::new_err(msg),
+                RedisErrorKind::Busy => exc::BusyError::new_err(msg),
+                RedisErrorKind::ClusterDown => exc::ClusterDownError::new_err(msg),
+                _ => exc::ResponseError::new_err(msg),
+            },
+            PyrsedisError::Graph(_) => exc::GraphError::new_err(msg),
+            PyrsedisError::Type(_) => pyo3::exceptions::PyTypeError::new_err(msg),
+            PyrsedisError::Timeout(_) => exc::RedisTimeoutError::new_err(msg),
+            PyrsedisError::Cluster(_) => exc::ClusterError::new_err(msg),
+            PyrsedisError::Sentinel(_) => exc::SentinelError::new_err(msg),
         }
     }
 }

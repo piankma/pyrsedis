@@ -23,6 +23,9 @@ r = Redis.from_url("rediss://:password@host:6380/0")
 
 ## Sentinel
 
+!!! warning "v0.1.0 limitation"
+    Sentinel URLs are parsed but **routing is not yet implemented**. The client connects to the first sentinel host as a standalone Redis server. Full sentinel master resolution and failover will be available in v0.2.
+
 ```python
 r = Redis.from_url("redis+sentinel://:password@mymaster@sentinel1:26379,sentinel2:26379/0")
 ```
@@ -32,6 +35,9 @@ Format: `redis+sentinel://[user:password@]master_name@host[:port][,host[:port]..
 TLS variant: `redis+sentinels://`
 
 ## Cluster
+
+!!! warning "v0.1.0 limitation"
+    Cluster URLs are parsed but **routing is not yet implemented**. The client connects to the first seed node as a standalone server. Full cluster slot mapping, MOVED/ASK handling, and replica reads will be available in v0.2.
 
 ```python
 r = Redis.from_url("redis+cluster://:password@node1:6379,node2:6379")

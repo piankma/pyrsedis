@@ -38,7 +38,7 @@ def r():
 class TestStrings:
     def test_set_get(self, r):
         r.set("key", "hello")
-        assert r.get("key") == b"hello"
+        assert r.get("key") == "hello"
 
     def test_get_nonexistent(self, r):
         assert r.get("nonexistent") is None
@@ -56,13 +56,13 @@ class TestStrings:
     def test_set_nx(self, r):
         assert r.set("k", "first", nx=True) is True
         assert r.set("k", "second", nx=True) is None
-        assert r.get("k") == b"first"
+        assert r.get("k") == "first"
 
     def test_set_xx(self, r):
         assert r.set("k", "val", xx=True) is None
         r.set("k", "original")
         assert r.set("k", "updated", xx=True) is True
-        assert r.get("k") == b"updated"
+        assert r.get("k") == "updated"
 
     def test_delete(self, r):
         r.set("k", "v")
@@ -87,13 +87,13 @@ class TestStrings:
     def test_incrbyfloat(self, r):
         r.set("f", "10.5")
         result = r.incrbyfloat("f", 1.5)
-        assert result == b"12"
+        assert result == "12"
 
     def test_mget_mset(self, r):
         r.mset({"a": "1", "b": "2"})
         result = r.mget("a", "b", "nonexistent")
-        assert result[0] == b"1"
-        assert result[1] == b"2"
+        assert result[0] == "1"
+        assert result[1] == "2"
         assert result[2] is None
 
     def test_append_strlen(self, r):
@@ -103,11 +103,11 @@ class TestStrings:
 
     def test_getrange(self, r):
         r.set("k", "hello world")
-        assert r.getrange("k", 0, 4) == b"hello"
+        assert r.getrange("k", 0, 4) == "hello"
 
     def test_getdel(self, r):
         r.set("k", "v")
-        assert r.getdel("k") == b"v"
+        assert r.getdel("k") == "v"
         assert r.get("k") is None
 
     def test_setnx(self, r):
@@ -116,7 +116,7 @@ class TestStrings:
 
     def test_setex(self, r):
         r.setex("k", 10, "v")
-        assert r.get("k") == b"v"
+        assert r.get("k") == "v"
         assert 0 < r.ttl("k") <= 10
 
     def test_unlink(self, r):
@@ -128,7 +128,7 @@ class TestStrings:
         r.set("src", "val")
         r.rename("src", "dst")
         assert r.get("src") is None
-        assert r.get("dst") == b"val"
+        assert r.get("dst") == "val"
 
     def test_expire_persist_ttl(self, r):
         r.set("k", "v")
@@ -150,7 +150,7 @@ class TestStrings:
 class TestHashes:
     def test_hset_hget(self, r):
         assert r.hset("h", "f", "v") == 1
-        assert r.hget("h", "f") == b"v"
+        assert r.hget("h", "f") == "v"
 
     def test_hget_nonexistent(self, r):
         assert r.hget("nosuchhash", "f") is None
@@ -185,19 +185,19 @@ class TestHashes:
     def test_hincrbyfloat(self, r):
         r.hset("h", "f", "10")
         result = r.hincrbyfloat("h", "f", 1.5)
-        assert result == b"11.5"
+        assert result == "11.5"
 
     def test_hsetnx(self, r):
         assert r.hsetnx("h", "f", "v") == 1
         assert r.hsetnx("h", "f", "v2") == 0
-        assert r.hget("h", "f") == b"v"
+        assert r.hget("h", "f") == "v"
 
     def test_hmget(self, r):
         r.hset("h", "a", "1")
         r.hset("h", "b", "2")
         result = r.hmget("h", "a", "b", "c")
-        assert result[0] == b"1"
-        assert result[1] == b"2"
+        assert result[0] == "1"
+        assert result[1] == "2"
         assert result[2] is None
 
 
@@ -209,23 +209,23 @@ class TestLists:
         assert r.rpush("l", "a", "b") == 2
         assert r.lpush("l", "z") == 3
         result = r.lrange("l", 0, -1)
-        assert result == [b"z", b"a", b"b"]
+        assert result == ["z", "a", "b"]
 
     def test_lpop_rpop(self, r):
         r.rpush("l", "a", "b", "c")
-        assert r.lpop("l") == b"a"
-        assert r.rpop("l") == b"c"
+        assert r.lpop("l") == "a"
+        assert r.rpop("l") == "c"
         assert r.llen("l") == 1
 
     def test_lindex(self, r):
         r.rpush("l", "a", "b", "c")
-        assert r.lindex("l", 0) == b"a"
-        assert r.lindex("l", -1) == b"c"
+        assert r.lindex("l", 0) == "a"
+        assert r.lindex("l", -1) == "c"
 
     def test_lset(self, r):
         r.rpush("l", "a", "b", "c")
         r.lset("l", 1, "X")
-        assert r.lindex("l", 1) == b"X"
+        assert r.lindex("l", 1) == "X"
 
     def test_lrem(self, r):
         r.rpush("l", "a", "b", "a", "c", "a")
@@ -254,7 +254,7 @@ class TestSets:
     def test_spop(self, r):
         r.sadd("s", "a", "b", "c")
         result = r.spop("s")
-        assert isinstance(result, bytes)
+        assert isinstance(result, str)
         assert r.scard("s") == 2
 
     def test_sinter(self, r):
@@ -280,7 +280,7 @@ class TestSets:
 class TestSortedSets:
     def test_zadd_zscore_zcard(self, r):
         assert r.zadd("z", {"a": 1, "b": 2, "c": 3}) == 3
-        assert r.zscore("z", "b") == b"2"
+        assert r.zscore("z", "b") == "2"
         assert r.zcard("z") == 3
 
     def test_zrank(self, r):
@@ -294,7 +294,7 @@ class TestSortedSets:
 
     def test_zincrby(self, r):
         r.zadd("z", {"m": 10})
-        assert r.zincrby("z", 5.0, "m") == b"15"
+        assert r.zincrby("z", 5.0, "m") == "15"
 
     def test_zcount(self, r):
         r.zadd("z", {"a": 1, "b": 2, "c": 3, "d": 4})
@@ -303,7 +303,7 @@ class TestSortedSets:
     def test_zrange(self, r):
         r.zadd("z", {"a": 1, "b": 2, "c": 3})
         result = r.zrange("z", 0, -1)
-        assert result == [b"a", b"b", b"c"]
+        assert result == ["a", "b", "c"]
 
     def test_zrange_withscores(self, r):
         r.zadd("z", {"a": 1, "b": 2})
@@ -313,8 +313,8 @@ class TestSortedSets:
     def test_zrevrange(self, r):
         r.zadd("z", {"a": 1, "b": 2, "c": 3})
         result = r.zrevrange("z", 0, -1)
-        assert result[0] == b"c"
-        assert result[2] == b"a"
+        assert result[0] == "c"
+        assert result[2] == "a"
 
     def test_zrangebyscore(self, r):
         r.zadd("z", {"a": 1, "b": 2, "c": 3, "d": 4})
@@ -344,8 +344,8 @@ class TestPipeline:
         pipe.get("b")
         results = pipe.execute()
         assert len(results) == 4
-        assert results[2] == b"1"
-        assert results[3] == b"2"
+        assert results[2] == "1"
+        assert results[3] == "2"
 
     def test_empty_pipeline(self, r):
         pipe = r.pipeline()
@@ -368,7 +368,7 @@ class TestPipeline:
     def test_pipeline_chaining(self, r):
         results = r.pipeline().set("x", "1").set("y", "2").get("x").get("y").execute()
         assert len(results) == 4
-        assert results[2] == b"1"
+        assert results[2] == "1"
 
     def test_pipeline_mixed_types(self, r):
         pipe = r.pipeline()
@@ -378,7 +378,7 @@ class TestPipeline:
         pipe.delete("n")
         results = pipe.execute()
         assert results[1] == 11
-        assert results[2] == b"11"
+        assert results[2] == "11"
         assert results[3] == 1
 
     def test_pipeline_large_batch(self, r):
@@ -390,7 +390,7 @@ class TestPipeline:
         results = pipe.execute()
         assert len(results) == 200
         # Verify last GET
-        assert results[199] == b"v99"
+        assert results[199] == "v99"
 
 
 # ── Server commands ─────────────────────────────────────────────────
@@ -401,7 +401,7 @@ class TestServer:
         assert r.ping() is True
 
     def test_echo(self, r):
-        assert r.echo("hello") == b"hello"
+        assert r.echo("hello") == "hello"
 
     def test_dbsize(self, r):
         assert r.dbsize() == 0
@@ -416,7 +416,7 @@ class TestServer:
 
     def test_info(self, r):
         result = r.info()
-        assert b"redis_version" in result or b"server" in result
+        assert "redis_version" in result or "server" in result
 
     def test_time(self, r):
         result = r.time()
@@ -426,7 +426,7 @@ class TestServer:
         result = r.execute_command("SET", "k", "v")
         assert result == "OK"
         result = r.execute_command("GET", "k")
-        assert result == b"v"
+        assert result == "v"
 
     def test_repr(self, r):
         rep = repr(r)
@@ -452,17 +452,106 @@ class TestScripting:
     def test_eval_with_keys(self, r):
         r.set("k", "hello")
         result = r.eval("return redis.call('GET', KEYS[1])", 1, "k")
-        assert result == b"hello"
+        assert result == "hello"
 
     def test_script_load_and_evalsha(self, r):
         sha = r.script_load("return 'ok'")
-        sha_str = sha.decode() if isinstance(sha, bytes) else sha
+        sha_str = sha
         result = r.evalsha(sha_str, 0)
-        assert result == b"ok"
+        assert result == "ok"
 
     def test_scan(self, r):
         for i in range(5):
             r.set(f"scan_{i}", "v")
         cursor, keys = r.scan(0)
         # May need multiple iterations, but at least we got some
-        assert isinstance(cursor, (int, bytes))
+        assert isinstance(cursor, (int, str))
+
+
+class TestExceptions:
+    """Tests for the custom exception hierarchy."""
+
+    def test_hierarchy(self):
+        """All exceptions inherit from PyrsedisError."""
+        import pyrsedis
+
+        assert issubclass(pyrsedis.RedisConnectionError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.RedisTimeoutError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.ProtocolError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.RedisError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.GraphError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.ClusterError, pyrsedis.PyrsedisError)
+        assert issubclass(pyrsedis.SentinelError, pyrsedis.PyrsedisError)
+
+    def test_redis_error_subclasses(self):
+        """RedisError children form a proper tree."""
+        import pyrsedis
+
+        assert issubclass(pyrsedis.ResponseError, pyrsedis.RedisError)
+        assert issubclass(pyrsedis.WrongTypeError, pyrsedis.RedisError)
+        assert issubclass(pyrsedis.ReadOnlyError, pyrsedis.RedisError)
+        assert issubclass(pyrsedis.NoScriptError, pyrsedis.RedisError)
+        assert issubclass(pyrsedis.BusyError, pyrsedis.RedisError)
+        assert issubclass(pyrsedis.ClusterDownError, pyrsedis.RedisError)
+
+    def test_wrongtype_error(self, r):
+        """WRONGTYPE raises WrongTypeError, catchable as RedisError."""
+        import pyrsedis
+
+        r.set("str_key", "hello")
+        with pytest.raises(pyrsedis.WrongTypeError):
+            r.lpush("str_key", "value")
+
+        # Also catchable as RedisError
+        r.set("str_key2", "hello")
+        with pytest.raises(pyrsedis.RedisError):
+            r.lpush("str_key2", "value")
+
+        # And as PyrsedisError
+        r.set("str_key3", "hello")
+        with pytest.raises(pyrsedis.PyrsedisError):
+            r.lpush("str_key3", "value")
+
+    def test_response_error_bad_command(self, r):
+        """Generic ERR raises ResponseError."""
+        import pyrsedis
+
+        with pytest.raises(pyrsedis.ResponseError):
+            r.execute_command("SET")  # missing required args
+
+    def test_noscript_error(self, r):
+        """NOSCRIPT raises NoScriptError."""
+        import pyrsedis
+
+        with pytest.raises(pyrsedis.NoScriptError):
+            r.evalsha("0000000000000000000000000000000000000000", 0)
+
+    def test_connection_error(self):
+        """Unreachable host raises RedisConnectionError or RedisTimeoutError."""
+        import pyrsedis
+
+        r = pyrsedis.Redis(host="192.0.2.1", port=1, connect_timeout_ms=500)
+        with pytest.raises(pyrsedis.PyrsedisError) as exc_info:
+            r.ping()
+        assert isinstance(exc_info.value, (pyrsedis.RedisConnectionError, pyrsedis.RedisTimeoutError))
+
+    def test_exception_message(self, r):
+        """Exception messages contain the Redis error string."""
+        import pyrsedis
+
+        r.set("mystr", "hello")
+        try:
+            r.lpush("mystr", "value")
+        except pyrsedis.WrongTypeError as e:
+            assert "WRONGTYPE" in str(e)
+
+    @pytest.fixture
+    def r(self):
+        from pyrsedis import Redis
+
+        try:
+            client = Redis()
+            client.flushdb()
+            return client
+        except Exception:
+            pytest.skip("Redis server not available")

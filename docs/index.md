@@ -7,7 +7,7 @@ hide:
 
 A high-performance Redis client for Python, built in Rust.
 
-**112M+ rows/sec** on graph queries. **12x faster pipelines** than redis-py. Zero-copy RESP parsing. Native FalkorDB support.
+**109M+ rows/sec** on graph queries. **13x faster pipelines** than redis-py. Zero-copy RESP parsing. Native FalkorDB support.
 
 ## Why pyrsedis?
 
@@ -23,7 +23,7 @@ from pyrsedis import Redis
 
 r = Redis()                        # localhost:6379
 r.set("key", "value")
-r.get("key")                       # b'value'
+r.get("key")                       # 'value'
 
 # Pipeline — single round-trip
 pipe = r.pipeline()

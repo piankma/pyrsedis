@@ -61,9 +61,9 @@ impl Redis {
     ///     read_timeout_ms: Read/response timeout in milliseconds, 0 = no timeout (default ``30000``).
     ///     idle_timeout_ms: Idle connection timeout in milliseconds (default ``300000``).
     ///     max_buffer_size: Max read buffer size per connection in bytes (default ``67108864``).
-    ///     decode_responses: If ``True``, decode bulk string responses to Python ``str`` (default ``False``).
+    ///     decode_responses: If ``False``, return bulk string responses as ``bytes`` (default ``True``).
     #[new]
-    #[pyo3(signature = (host="127.0.0.1", port=6379, db=0, password=None, username=None, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, max_buffer_size=67_108_864, decode_responses=false))]
+    #[pyo3(signature = (host="127.0.0.1", port=6379, db=0, password=None, username=None, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, max_buffer_size=67_108_864, decode_responses=true))]
     fn new(
         host: &str,
         port: u16,
@@ -110,7 +110,7 @@ impl Redis {
     /// r = Redis.from_url("redis://:secret@localhost:6379/0")
     /// ```
     #[staticmethod]
-    #[pyo3(signature = (url, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, decode_responses=false))]
+    #[pyo3(signature = (url, pool_size=8, connect_timeout_ms=5000, read_timeout_ms=30_000, idle_timeout_ms=300_000, decode_responses=true))]
     fn from_url(
         url: &str,
         pool_size: usize,

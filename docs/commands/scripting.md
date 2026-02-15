@@ -6,8 +6,8 @@ Execute Lua scripts on the Redis server.
 
 ```python
 # EVAL script numkeys [key ...] [arg ...]
-result = r.eval("return KEYS[1]", 1, "mykey")       # b'mykey'
-result = r.eval("return ARGV[1]", 0, "hello")        # b'hello'
+result = r.eval("return KEYS[1]", 1, "mykey")       # 'mykey'
+result = r.eval("return ARGV[1]", 0, "hello")        # 'hello'
 result = r.eval("return redis.call('GET', KEYS[1])", 1, "mykey")
 ```
 

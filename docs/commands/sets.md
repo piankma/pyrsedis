@@ -13,7 +13,7 @@ r.srem("tags", "redis")                      # 1 (removed)
 ## `smembers` / `scard` / `sismember`
 
 ```python
-r.smembers("tags")           # {b'python', b'rust'}
+r.smembers("tags")           # ['python', 'rust']
 r.scard("tags")              # 2
 r.sismember("tags", "rust")  # 1 (True)
 ```
@@ -35,7 +35,7 @@ Set operations across multiple keys.
 r.sadd("a", "1", "2", "3")
 r.sadd("b", "2", "3", "4")
 
-r.sinter("a", "b")    # {b'2', b'3'}        — intersection
-r.sunion("a", "b")    # {b'1', b'2', b'3', b'4'} — union
-r.sdiff("a", "b")     # {b'1'}              — difference (in a, not in b)
+r.sinter("a", "b")    # ['2', '3']              — intersection
+r.sunion("a", "b")    # ['1', '2', '3', '4']     — union
+r.sdiff("a", "b")     # ['1']                    — difference (in a, not in b)
 ```

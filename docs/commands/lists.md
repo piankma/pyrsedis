@@ -19,9 +19,9 @@ r.lrange("queue", 0, 2)     # first 3 elements
 ## `lpop` / `rpop`
 
 ```python
-r.lpop("queue")             # b'c' (head)
-r.rpop("queue")             # b'y' (tail)
-r.lpop("queue", count=2)    # [b'b', b'a'] (pop multiple)
+r.lpop("queue")             # 'c' (head)
+r.rpop("queue")             # 'y' (tail)
+r.lpop("queue", count=2)    # ['b', 'a'] (pop multiple)
 ```
 
 ## `llen`
@@ -34,7 +34,7 @@ r.llen("queue")    # number of elements
 
 ```python
 r.rpush("items", "a", "b", "c")
-r.lindex("items", 1)        # b'b'
+r.lindex("items", 1)        # 'b'
 r.lset("items", 1, "B")     # replaces index 1
 ```
 

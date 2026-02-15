@@ -20,33 +20,32 @@ r = Redis.from_url("redis://:secret@redis.example.com:6380/1")
 ```python
 # Strings
 r.set("name", "Alice")
-r.get("name")          # b'Alice'
-r.set("counter", 0)
+r.get("name")          # 'Alice'
+r.set("counter", "0")
 r.incr("counter")      # 1
 r.incrby("counter", 5) # 6
 
-# Auto-decode to str
-r = Redis(decode_responses=True)
-r.set("name", "Alice")
-r.get("name")          # 'Alice'
+# Raw bytes mode (for binary data)
+r = Redis(decode_responses=False)
+r.get("name")          # b'Alice'
 
 # Hashes
 r.hset("user:1", "name", "Alice")
 r.hset("user:1", "age", "30")
-r.hgetall("user:1")    # {b'name': b'Alice', b'age': b'30'}
+r.hgetall("user:1")    # ['name', 'Alice', 'age', '30']
 
 # Lists
 r.lpush("queue", "a", "b", "c")
-r.lrange("queue", 0, -1)  # [b'c', b'b', b'a']
+r.lrange("queue", 0, -1)  # ['c', 'b', 'a']
 
 # Sets
 r.sadd("tags", "python", "rust", "redis")
-r.smembers("tags")     # {b'python', b'rust', b'redis'}
+r.smembers("tags")     # ['python', 'rust', 'redis']
 
 # Sorted sets
 r.zadd("scores", {"alice": 100, "bob": 85})
 r.zrange("scores", 0, -1, withscores=True)
-# [(b'bob', 85.0), (b'alice', 100.0)]
+# ['bob', '85', 'alice', '100']
 ```
 
 ## Pipelines
@@ -59,7 +58,7 @@ pipe.set("a", "1")
 pipe.set("b", "2")
 pipe.get("a")
 pipe.get("b")
-results = pipe.execute()  # [True, True, b'1', b'2']
+results = pipe.execute()  # [True, True, '1', '2']
 ```
 
 ## FalkorDB graph queries
@@ -88,15 +87,15 @@ result = r.graph_query("social", """
 ## Error handling
 
 ```python
-from pyrsedis import Redis
+from pyrsedis import Redis, RedisConnectionError, RedisTimeoutError, RedisError
 
 r = Redis()
 try:
     r.get("key")
-except ConnectionError:
+except RedisConnectionError:
     print("Cannot connect to Redis")
-except TimeoutError:
+except RedisTimeoutError:
     print("Operation timed out")
-except RuntimeError as e:
+except RedisError as e:
     print(f"Redis error: {e}")
 ```

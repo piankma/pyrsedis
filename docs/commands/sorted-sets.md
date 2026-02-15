@@ -30,22 +30,22 @@ r.zcard("leaderboard")            # 4
 ```python
 # Ascending (lowest score first)
 r.zrange("leaderboard", 0, -1)
-# [b'dave', b'bob', b'carol', b'alice']
+# ['dave', 'bob', 'carol', 'alice']
 
-# With scores
+# With scores (flat list, not tuples)
 r.zrange("leaderboard", 0, 2, withscores=True)
-# [(b'dave', 50.0), (b'bob', 90.0), (b'carol', 92.0)]
+# ['dave', '50', 'bob', '90', 'carol', '92']
 
 # Descending (highest score first)
 r.zrevrange("leaderboard", 0, 2, withscores=True)
-# [(b'alice', 110.0), (b'carol', 92.0), (b'bob', 90.0)]
+# ['alice', '110', 'carol', '92', 'bob', '90']
 ```
 
 ## `zrangebyscore`
 
 ```python
 r.zrangebyscore("leaderboard", 80, 100)
-# [b'bob', b'carol']
+# ['bob', 'carol']
 
 r.zrangebyscore("leaderboard", "-inf", "+inf", withscores=True)
 # all members with scores

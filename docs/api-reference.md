@@ -2,6 +2,9 @@
 
 Complete reference for all public classes and methods.
 
+!!! note "Return types"
+    pyrsedis returns raw RESP-parsed values. Unlike redis-py, `hgetall` returns a flat `list` (not a `dict`), `smembers` returns a `list` (not a `set`), and `zrange(..., withscores=True)` returns a flat `list` (not tuples). The `scan` cursor is a `str`, not an `int`. All string values (`str` vs `bytes`) depend on the `decode_responses` setting (default: `True`).
+
 ## `Redis`
 
 ### Constructor
@@ -18,7 +21,7 @@ Redis(
     read_timeout_ms: int = 30_000,
     idle_timeout_ms: int = 300_000,
     max_buffer_size: int = 67_108_864,
-    decode_responses: bool = False,
+    decode_responses: bool = True,
 )
 ```
 
@@ -40,9 +43,9 @@ Redis(
 | Method | Returns |
 |---|---|
 | `set(name, value, ex=None, px=None, nx=False, xx=False)` | `bool \| None` |
-| `get(name)` | `bytes \| None` |
+| `get(name)` | `str \| None` |
 | `mset(mapping)` | `bool` |
-| `mget(*names)` | `list[bytes \| None]` |
+| `mget(*names)` | `list[str \| None]` |
 | `delete(*names)` | `int` |
 | `exists(*names)` | `int` |
 | `incr(name)` | `int` |
@@ -52,9 +55,9 @@ Redis(
 | `incrbyfloat(name, amount)` | `Any` |
 | `append(name, value)` | `int` |
 | `strlen(name)` | `int` |
-| `getrange(name, start, end)` | `bytes` |
-| `getset(name, value)` | `bytes \| None` |
-| `getdel(name)` | `bytes \| None` |
+| `getrange(name, start, end)` | `str` |
+| `getset(name, value)` | `str | None` |
+| `getdel(name)` | `str | None` |
 | `setnx(name, value)` | `int` |
 | `setex(name, seconds, value)` | `Any` |
 
@@ -63,14 +66,14 @@ Redis(
 | Method | Returns |
 |---|---|
 | `hset(name, key, value)` | `int` |
-| `hget(name, key)` | `bytes \| None` |
+| `hget(name, key)` | `str | None` |
 | `hgetall(name)` | `Any` |
 | `hdel(name, *keys)` | `int` |
 | `hexists(name, key)` | `int` |
-| `hkeys(name)` | `list[bytes]` |
-| `hvals(name)` | `list[bytes]` |
+| `hkeys(name)` | `list[str]` |
+| `hvals(name)` | `list[str]` |
 | `hlen(name)` | `int` |
-| `hmget(name, *keys)` | `list[bytes \| None]` |
+| `hmget(name, *keys)` | `list[str | None]` |
 | `hincrby(name, key, amount)` | `int` |
 | `hincrbyfloat(name, key, amount)` | `Any` |
 | `hsetnx(name, key, value)` | `int` |
@@ -81,11 +84,11 @@ Redis(
 |---|---|
 | `lpush(name, *values)` | `int` |
 | `rpush(name, *values)` | `int` |
-| `lrange(name, start, stop)` | `list[bytes]` |
+| `lrange(name, start, stop)` | `list[str]` |
 | `llen(name)` | `int` |
-| `lpop(name, count=None)` | `bytes \| list[bytes] \| None` |
-| `rpop(name, count=None)` | `bytes \| list[bytes] \| None` |
-| `lindex(name, index)` | `bytes \| None` |
+| `lpop(name, count=None)` | `str | list[str] | None` |
+| `rpop(name, count=None)` | `str | list[str] | None` |
+| `lindex(name, index)` | `str | None` |
 | `lset(name, index, value)` | `Any` |
 | `lrem(name, count, value)` | `int` |
 
@@ -132,11 +135,11 @@ Redis(
 | `persist(name)` | `int` |
 | `rename(src, dst)` | `Any` |
 | `type(name)` | `Any` |
-| `keys(pattern="*")` | `list[bytes]` |
+| `keys(pattern="*")` | `list[str]` |
 | `scan(cursor=0, match_pattern=None, count=None)` | `list` |
 | `dump(name)` | `bytes \| None` |
 | `unlink(*names)` | `int` |
-| `randomkey()` | `bytes \| None` |
+| `randomkey()` | `str | None` |
 
 ### Graph commands
 
@@ -161,7 +164,7 @@ Redis(
 | `flushall()` | `Any` |
 | `info(section=None)` | `Any` |
 | `dbsize()` | `int` |
-| `echo(message)` | `bytes` |
+| `echo(message)` | `str` |
 | `publish(channel, message)` | `int` |
 | `time()` | `list[Any]` |
 | `lastsave()` | `int` |
@@ -198,4 +201,4 @@ Created via `r.pipeline()`. All command methods return `self` for chaining.
 
 ### Command methods
 
-All `Redis` command methods are available on `Pipeline` and return `Pipeline` (self) instead of the command result. Results are collected in `execute()`.
+Most `Redis` command methods are available on `Pipeline` and return `Pipeline` (self) instead of the command result. Results are collected in `execute()`. For commands not available on `Pipeline`, use `pipe.execute_command("CMD", "arg1", ...)`.

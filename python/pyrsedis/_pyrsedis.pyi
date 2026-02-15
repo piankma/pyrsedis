@@ -4,6 +4,66 @@ from typing import Any, Optional
 
 __version__: str
 
+# ── Exception hierarchy ─────────────────────────────────────────────
+
+class PyrsedisError(Exception):
+    """Base exception for all pyrsedis errors."""
+    ...
+
+class RedisConnectionError(PyrsedisError):
+    """Cannot connect to Redis or the connection was dropped."""
+    ...
+
+class RedisTimeoutError(PyrsedisError):
+    """Connect or read timeout exceeded."""
+    ...
+
+class ProtocolError(PyrsedisError):
+    """Malformed RESP data received from the server."""
+    ...
+
+class RedisError(PyrsedisError):
+    """Redis server returned an error response."""
+    ...
+
+class ResponseError(RedisError):
+    """Generic Redis ``ERR`` response."""
+    ...
+
+class WrongTypeError(RedisError):
+    """``WRONGTYPE`` — operation against a key holding the wrong kind of value."""
+    ...
+
+class ReadOnlyError(RedisError):
+    """``READONLY`` — cannot write against a read-only replica."""
+    ...
+
+class NoScriptError(RedisError):
+    """``NOSCRIPT`` — no matching script found."""
+    ...
+
+class BusyError(RedisError):
+    """``BUSY`` — Redis is busy running a script."""
+    ...
+
+class ClusterDownError(RedisError):
+    """``CLUSTERDOWN`` — the cluster is down."""
+    ...
+
+class GraphError(PyrsedisError):
+    """FalkorDB / graph-specific error."""
+    ...
+
+class ClusterError(PyrsedisError):
+    """Cluster topology error (e.g. no node for slot)."""
+    ...
+
+class SentinelError(PyrsedisError):
+    """Sentinel topology error (e.g. master not found)."""
+    ...
+
+# ── Client ──────────────────────────────────────────────────────────
+
 class Redis:
     """A synchronous Redis client backed by a connection pool.
 
@@ -17,7 +77,7 @@ class Redis:
         >>> r.set("greeting", "hello")
         True
         >>> r.get("greeting")
-        b'hello'
+        'hello'
     """
 
     def __init__(
@@ -29,9 +89,10 @@ class Redis:
         username: Optional[str] = None,
         pool_size: int = 8,
         connect_timeout_ms: int = 5000,
+        read_timeout_ms: int = 30000,
         idle_timeout_ms: int = 300000,
-        max_buffer_size: int = 536870912,
-        decode_responses: bool = False,
+        max_buffer_size: int = 67108864,
+        decode_responses: bool = True,
     ) -> None:
         """Create a new Redis client.
 
@@ -43,15 +104,16 @@ class Redis:
             username: Username for ACL-based ``AUTH`` (Redis 6+).
             pool_size: Maximum number of connections in the pool.
             connect_timeout_ms: TCP connect timeout in milliseconds.
+            read_timeout_ms: Read/response timeout in milliseconds, 0 = no timeout.
             idle_timeout_ms: Time before an idle connection is closed, in
                 milliseconds.
             max_buffer_size: Maximum read-buffer size per connection in bytes.
-                Defaults to 512 MiB.
-            decode_responses: If ``True``, bulk-string responses are decoded
-                to Python ``str`` (UTF-8) instead of ``bytes``.
+                Defaults to 64 MiB.
+            decode_responses: If ``False``, return bulk-string responses as
+                ``bytes`` instead of ``str``.
 
         Raises:
-            ConnectionError: If the initial connection cannot be established.
+            RedisConnectionError: If the initial connection cannot be established.
         """
         ...
 
@@ -60,25 +122,35 @@ class Redis:
         url: str,
         pool_size: int = 8,
         connect_timeout_ms: int = 5000,
+        read_timeout_ms: int = 30000,
         idle_timeout_ms: int = 300000,
-        decode_responses: bool = False,
+        decode_responses: bool = True,
     ) -> "Redis":
-        """Create a client from a ``redis://`` or ``rediss://`` URL.
+        """Create a client from a ``redis://``, ``rediss://``, ``redis+sentinel://``,
+        or ``redis+cluster://`` URL.
+
+        .. note::
+
+            Sentinel and cluster URLs are parsed but routing is not yet
+            implemented in v0.1.0.  The client connects to the first host
+            as a standalone server.
 
         Args:
             url: Connection URL.  Format:
                 ``redis://[user:password@]host[:port][/db]``
             pool_size: Maximum number of connections in the pool.
             connect_timeout_ms: TCP connect timeout in milliseconds.
+            read_timeout_ms: Read/response timeout in milliseconds, 0 = no timeout.
             idle_timeout_ms: Idle-connection eviction timeout in milliseconds.
-            decode_responses: If ``True``, decode bulk-string responses to
-                Python ``str``.
+            decode_responses: If ``False``, return bulk-string responses as
+                ``bytes``.
 
         Returns:
             A new :class:`Redis` instance.
 
         Raises:
-            ValueError: If the URL scheme is not ``redis`` or ``rediss``.
+            RedisConnectionError: If the URL is unreachable.
+            ResponseError: If the URL scheme is unsupported.
         """
         ...
 
@@ -148,7 +220,7 @@ class Redis:
         """
         ...
 
-    def get(self, name: str) -> Optional[bytes]:
+    def get(self, name: str) -> Optional[str | bytes]:
         """Get the value of a key.
 
         Args:
@@ -326,7 +398,7 @@ class Redis:
         """
         ...
 
-    def mget(self, *names: str) -> list[Optional[bytes]]:
+    def mget(self, *names: str) -> list[Optional[str | bytes]]:
         """Get the values of multiple keys.
 
         Args:
@@ -371,7 +443,7 @@ class Redis:
         """
         ...
 
-    def getrange(self, name: str, start: int, end: int) -> bytes:
+    def getrange(self, name: str, start: int, end: int) -> str | bytes:
         """Get a substring of the string stored at a key.
 
         Args:
@@ -384,7 +456,7 @@ class Redis:
         """
         ...
 
-    def getset(self, name: str, value: str) -> Optional[bytes]:
+    def getset(self, name: str, value: str) -> Optional[str | bytes]:
         """Set a key and return its old value.
 
         Args:
@@ -396,7 +468,7 @@ class Redis:
         """
         ...
 
-    def getdel(self, name: str) -> Optional[bytes]:
+    def getdel(self, name: str) -> Optional[str | bytes]:
         """Get the value of a key and delete it.
 
         Args:
@@ -432,7 +504,7 @@ class Redis:
         """
         ...
 
-    def dump(self, name: str) -> Optional[bytes]:
+    def dump(self, name: str) -> Optional[str | bytes]:
         """Return a serialised version of the value stored at a key.
 
         Args:
@@ -480,7 +552,7 @@ class Redis:
         """
         ...
 
-    def hget(self, name: str, key: str) -> Optional[bytes]:
+    def hget(self, name: str, key: str) -> Optional[str | bytes]:
         """Get the value of a hash field.
 
         Args:
@@ -527,7 +599,7 @@ class Redis:
         """
         ...
 
-    def hkeys(self, name: str) -> list[bytes]:
+    def hkeys(self, name: str) -> list[str | bytes]:
         """Get all field names in a hash.
 
         Args:
@@ -538,7 +610,7 @@ class Redis:
         """
         ...
 
-    def hvals(self, name: str) -> list[bytes]:
+    def hvals(self, name: str) -> list[str | bytes]:
         """Get all values in a hash.
 
         Args:
@@ -599,7 +671,7 @@ class Redis:
         """
         ...
 
-    def hmget(self, name: str, *keys: str) -> list[Optional[bytes]]:
+    def hmget(self, name: str, *keys: str) -> list[Optional[str | bytes]]:
         """Get the values of multiple hash fields.
 
         Args:
@@ -663,7 +735,7 @@ class Redis:
         """
         ...
 
-    def lrange(self, name: str, start: int, stop: int) -> list[bytes]:
+    def lrange(self, name: str, start: int, stop: int) -> list[str | bytes]:
         """Get a range of elements from a list.
 
         Args:
@@ -687,7 +759,7 @@ class Redis:
         """
         ...
 
-    def lindex(self, name: str, index: int) -> Optional[bytes]:
+    def lindex(self, name: str, index: int) -> Optional[str | bytes]:
         """Get an element from a list by its index.
 
         Args:
@@ -1182,7 +1254,7 @@ class Redis:
 
     # ── Server commands ─────────────────────────────────────────
 
-    def keys(self, pattern: str = "*") -> list[bytes]:
+    def keys(self, pattern: str = "*") -> list[str | bytes]:
         """Find all keys matching a glob-style pattern.
 
         Args:
@@ -1242,7 +1314,7 @@ class Redis:
         """
         ...
 
-    def randomkey(self) -> Optional[bytes]:
+    def randomkey(self) -> Optional[str | bytes]:
         """Return a random key from the current database.
 
         Returns:
@@ -1258,7 +1330,7 @@ class Redis:
         """
         ...
 
-    def echo(self, message: str) -> bytes:
+    def echo(self, message: str) -> str | bytes:
         """Echo the given message.
 
         Args:

@@ -42,7 +42,7 @@ r.rename("old", "new")       # rename key (error if old doesn't exist)
 ## `type`
 
 ```python
-r.type("key")                # b'string', b'list', b'set', b'zset', b'hash'
+r.type("key")                # 'string', 'list', 'set', 'zset', 'hash'
 ```
 
 ## `keys` / `scan`
@@ -56,10 +56,13 @@ r.keys("user:*")             # all matching keys (avoid in production)
 
 ```python
 cursor, keys = r.scan(0, match_pattern="user:*", count=100)
-while cursor != 0:
+while cursor != "0":
     cursor, more_keys = r.scan(cursor, match_pattern="user:*", count=100)
     keys.extend(more_keys)
 ```
+
+!!! note
+    Unlike redis-py, the cursor is returned as a string (`"0"` when done), not an integer.
 
 ## `dump` / `randomkey`
 

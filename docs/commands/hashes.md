@@ -7,7 +7,7 @@ Redis hashes map string fields to string values — ideal for storing objects.
 ```python
 r.hset("user:1", "name", "Alice")
 r.hset("user:1", "age", "30")
-r.hget("user:1", "name")       # b'Alice'
+r.hget("user:1", "name")       # 'Alice'
 r.hget("user:1", "missing")    # None
 ```
 
@@ -17,11 +17,11 @@ Returns all fields and values.
 
 ```python
 r.hgetall("user:1")
-# {b'name': b'Alice', b'age': b'30'}
+# ['name', 'Alice', 'age', '30']
 ```
 
-!!! tip
-    For large hashes, prefer `hmget` with specific fields over `hgetall`.
+!!! note
+    Unlike redis-py, `hgetall` returns a flat list of alternating `[field, value, field, value, ...]` pairs, not a dict.
 
 ## `hmget`
 
@@ -29,7 +29,7 @@ Get multiple fields at once.
 
 ```python
 r.hmget("user:1", "name", "age", "missing")
-# [b'Alice', b'30', None]
+# ['Alice', '30', None]
 ```
 
 ## `hdel` / `hexists` / `hlen`
@@ -44,8 +44,8 @@ r.hlen("user:1")                # 1
 ## `hkeys` / `hvals`
 
 ```python
-r.hkeys("user:1")    # [b'name']
-r.hvals("user:1")    # [b'Alice']
+r.hkeys("user:1")    # ['name']
+r.hvals("user:1")    # ['Alice']
 ```
 
 ## `hincrby` / `hincrbyfloat`
@@ -55,7 +55,7 @@ Atomic field counters.
 ```python
 r.hset("stats", "views", "100")
 r.hincrby("stats", "views", 5)       # 105
-r.hincrbyfloat("stats", "score", 0.1) # b'0.1'
+r.hincrbyfloat("stats", "score", 0.1) # '0.1'
 ```
 
 ## `hsetnx`

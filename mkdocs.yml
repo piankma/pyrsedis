@@ -40,6 +40,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Why pyrsedis: why-pyrsedis.md
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quickstart: getting-started/quickstart.md
@@ -61,8 +62,12 @@ nav:
     - Connection Pooling: advanced/pooling.md
     - URL Schemes: advanced/urls.md
     - Error Handling: advanced/errors.md
+    - Performance Tips: advanced/performance.md
     - Security: advanced/security.md
+  - Benchmarks: benchmarks.md
+  - Architecture: architecture.md
   - API Reference: api-reference.md
+  - Changelog: changelog.md
 
 plugins:
   - search

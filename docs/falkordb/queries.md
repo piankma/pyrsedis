@@ -99,6 +99,6 @@ pyrsedis parses graph results directly from the RESP wire format into Python obj
 
 | Client | Throughput |
 |---|---|
-| **pyrsedis** | ~112M rows/sec |
-| falkordb-py | ~98M rows/sec |
+| **pyrsedis** | ~109M rows/sec |
+| falkordb-py | ~99M rows/sec |
 | redis-py (pure Python) | ~10M rows/sec |
