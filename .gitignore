@@ -10,5 +10,9 @@ build/
 site/
 .mypy_cache/
 .pytest_cache/
-*.lock
+uv.lock
 .venv/
+.DS_Store
+.idea/
+.vscode/
+*.swp

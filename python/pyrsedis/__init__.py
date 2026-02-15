@@ -30,24 +30,25 @@ Quick start::
     pipe.execute()                  # [True, True]
 """
 
-from pyrsedis._pyrsedis import Pipeline, Redis, __version__
-
 # Exception hierarchy
 from pyrsedis._pyrsedis import (
-    PyrsedisError,
-    RedisConnectionError,
-    RedisTimeoutError,
-    ProtocolError,
-    RedisError,
-    ResponseError,
-    WrongTypeError,
-    ReadOnlyError,
-    NoScriptError,
     BusyError,
     ClusterDownError,
-    GraphError,
     ClusterError,
+    GraphError,
+    NoScriptError,
+    Pipeline,
+    ProtocolError,
+    PyrsedisError,
+    ReadOnlyError,
+    Redis,
+    RedisConnectionError,
+    RedisError,
+    RedisTimeoutError,
+    ResponseError,
     SentinelError,
+    WrongTypeError,
+    __version__,
 )
 
 __all__ = [

@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 description = "High-performance Redis client for Python, built in Rust — with FalkorDB/RedisGraph support and direct Pydantic deserialization"
 license = "MIT"
+repository = "https://github.com/piankma/pyrsedis"
+authors = ["Mateusz Pianka <m.pianka@onionlabs.pl>"]
 
 [lib]
 name = "_pyrsedis"

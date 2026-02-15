@@ -1,8 +1,8 @@
 site_name: pyrsedis
 site_description: High-performance Redis client for Python, built in Rust
-site_url: https://pyrsedis.dev
-repo_url: https://github.com/pyrsedis/pyrsedis
-repo_name: pyrsedis/pyrsedis
+site_url: https://piankma.github.io/pyrsedis
+repo_url: https://github.com/piankma/pyrsedis
+repo_name: piankma/pyrsedis
 edit_uri: edit/main/docs/
 
 theme:

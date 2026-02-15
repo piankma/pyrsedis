@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "High-performance Redis client for Python, built in Rust — with FalkorDB/RedisGraph support and direct Pydantic deserialization"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+authors = [
+    { name = "Mateusz Pianka", email = "m.pianka@onionlabs.pl" },
+]
+keywords = ["redis", "rust", "falkordb", "pyo3", "graph-database", "high-performance"]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -16,9 +20,22 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
     "Topic :: Database",
+    "Intended Audience :: Developers",
+    "Typing :: Typed",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://piankma.github.io/pyrsedis"
+Repository = "https://github.com/piankma/pyrsedis"
+Documentation = "https://piankma.github.io/pyrsedis"
+Issues = "https://github.com/piankma/pyrsedis/issues"
+Changelog = "https://piankma.github.io/pyrsedis/changelog/"
 
 [project.optional-dependencies]
 pydantic = ["pydantic>=2.0"]
